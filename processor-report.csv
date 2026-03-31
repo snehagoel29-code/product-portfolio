@@ -1,0 +1,11 @@
+transaction_id,processor_date,amount,transaction_type,notes
+T1001,2025-03-02,45,settled,same-day settlement
+T1002,2025-03-02,32.5,settled,same-day settlement
+T1003,2025-03-02,18.75,settled,same-day settlement
+T1004,2025-03-03,60,settled,settled next day
+T1005,2025-03-03,27.25,settled,settled next day
+T1006,2025-03-03,80,settled,settled next day
+T1007,2025-03-04,-22,refund,refund processed day after sale
+T1008,2025-03-04,55,settled,settled next day
+T1011,2025-03-03,12,settled,processor-only transaction
+FEE-MAR,2025-03-03,-8,fee,monthly processing fees
