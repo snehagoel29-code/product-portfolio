@@ -1,0 +1,415 @@
+{
+  "name": "MVP Prototype",
+  "nodes": [
+    {
+      "parameters": {
+        "public": true,
+        "initialMessages": "Welcome to ReconLens! 🔍\n\nI'll help you reconcile your POS and payment processor data.\n\n📋 Step 1: Upload your POS report (CSV format)",
+        "options": {
+          "allowFileUploads": true,
+          "subtitle": "AI Assisted Accounting Reconciliation Explainer",
+          "title": "ReconLens 🔍",
+          "responseMode": "responseNodes"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        0,
+        -112
+      ],
+      "id": "be23110c-8320-47d9-8736-65d7d5c1c923",
+      "name": "Chat Trigger",
+      "webhookId": "68602acb-f878-4613-afd8-7b2a0af4eaea"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "79012a71-df2e-49e5-bf2e-d36905196bc8",
+              "leftValue": "={{ $json.ready_to_analyze }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        896,
+        -112
+      ],
+      "id": "57f95c03-f229-4428-9e3c-f5b778fd1dfe",
+      "name": "If"
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.message }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        1120,
+        -48
+      ],
+      "id": "5f78c790-8efa-41de-9cff-b2cc27cd4f66",
+      "name": "Respond to Chat",
+      "webhookId": "03bd7da5-8435-4987-bdb8-798652dc8703"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get both datasets from storage\nconst storage = $getWorkflowStaticData('global');\nconst posData = storage.recon.posData;\nconst processorData = storage.recon.processorData;\n\n// Validate we have both\nif (!posData || !processorData) {\n  return [{\n    json: {\n      error: \"Missing data - please start over\",\n      formatted_data: \"\",\n      summary: \"\"\n    }\n  }];\n}\n\n// Helper function to format any data dynamically\nfunction formatDataTable(data, title) {\n  let table = `${title}:\\n`;\n  table += \"=\".repeat(80) + \"\\n\\n\";\n  \n  data.forEach((item, index) => {\n    const record = item.json;\n    table += `Record ${index + 1}:\\n`;\n    \n    // Dynamically add ALL columns from the data\n    Object.keys(record).forEach(columnName => {\n      const value = record[columnName];\n      // Format the column name nicely (convert underscores to spaces, capitalize)\n      const formattedColumnName = columnName\n        .replace(/_/g, ' ')\n        .replace(/\\b\\w/g, char => char.toUpperCase());\n      \n      table += `  ${formattedColumnName}: ${value || 'N/A'}\\n`;\n    });\n    \n    table += `\\n`;\n  });\n  \n  return table;\n}\n\n// Format both datasets dynamically\nconst posTable = formatDataTable(posData, \"POS SYSTEM DATA\");\nconst processorTable = formatDataTable(processorData, \"PAYMENT PROCESSOR DATA\");\n\n// Combine\nconst combinedData = posTable + \"\\n\\n\" + processorTable;\n\n// Get column information to help the AI understand the data structure\nconst posColumns = posData.length > 0 ? Object.keys(posData[0].json).join(', ') : 'none';\nconst processorColumns = processorData.length > 0 ? Object.keys(processorData[0].json).join(', ') : 'none';\n\nreturn [{\n  json: {\n    formatted_data: combinedData,\n    pos_count: posData.length,\n    processor_count: processorData.length,\n    pos_columns: posColumns,\n    processor_columns: processorColumns,\n    summary: `POS has ${posData.length} transactions with columns: ${posColumns}\\nProcessor has ${processorData.length} transactions with columns: ${processorColumns}`\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2016,
+        -112
+      ],
+      "id": "0d46c721-99c4-4bcd-976c-256e38c92193",
+      "name": "Format Data for AI"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4o-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4O-MINI"
+        },
+        "responses": {
+          "values": [
+            {
+              "content": "=You are ReconLens, an AI-assisted reconciliation explainer designed to support accountants during financial reconciliation.\nYour purpose is not to correct financial records or make final decisions.\nYour role is to help accountants understand why numbers do not reconcile across multiple data sources by identifying mismatches and providing clear, cautious, and explainable diagnostic insights.\n\nContext\nAccountants reconcile financial data from multiple systems (for example: POS systems, payment processors, bank statements).\nWhile discrepancies are common, identifying the root cause of those discrepancies is often slow and manual.\nReconLens assists by:\n* Detecting mismatches across data sources\n* Highlighting potential reasons for discrepancies\n* Providing plain-English explanations that support human investigation\n\nWhat You Will Receive\nYou will be given:\n* Two datasets representing financial transactions from different systems (for example: POS vs payment processor)\n* Each dataset may include transaction IDs, dates, amounts, transaction types, or reference fields\n\nAssume:\n* Data may be incomplete, delayed, duplicated, or imperfect\n* Timing differences, refunds, fees, batching, or missing records are common\n* You do not have full system or business context\n\nYour Task\nUsing only the data provided:\n1. Identify transactions or amounts that do not reconcile across the datasets\n2. For each mismatch:\n   * Provide a likely explanation, only if it can be responsibly inferred from the data\n   * Use cautious language (for example: \"likely,\" \"appears to,\" \"may be caused by\")\n3. If the available data is insufficient to explain a discrepancy, explicitly state that additional information is required\n\nDo not:\n* Guess, fabricate, or hallucinate explanations when evidence is insufficient\n* Automatically fix discrepancies or adjust numbers\n* Assume one dataset is correct or authoritative\n\nOutput Requirements\nYour response must be:\n* Bullet-pointed\n* Written in plain English\n* Grouped by individual mismatches (pattern-level grouping is out of scope for MVP)\n* Explicitly cautious in tone\n* Begin with a highlights/summary section before the detailed analysis\n\nOutput Format\nUse the following structure exactly:\n\nReconLens – Reconciliation Insights\n\nHighlights / Summary:\n* Total discrepancies found: [number]\n* Most common issue type: [brief description]\n* Recommended priority actions: [1-2 key next steps]\n\nDetailed Analysis:\n\n* Transaction / Area:\n   * Observed mismatch:\n   * Likely explanation:\n   * Suggested next step:\n\n(Repeat for each mismatch)\n\nRisk & Trust Considerations (Required)\nInclude the following callout verbatim at the end of your response:\n\n⚠️ ReconLens provides diagnostic assistance only. Explanations are based on observed data patterns and may be incomplete or incorrect. Accountants should review all discrepancies and use professional judgment before finalizing financial reporting.\n\nTone Guidelines\n* Be helpful, not authoritative\n* Prefer clarity over completeness\n* When uncertain, state uncertainty explicitly\n\nHere is the data to analyze:\n\n{{ $json.formatted_data }}\n\nSUMMARY: {{ $json.summary }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 2.1,
+      "position": [
+        2240,
+        -112
+      ],
+      "id": "3233ab41-a379-49e9-82cb-02956a96e77f",
+      "name": "Message a model",
+      "credentials": {
+        "openAiApi": {
+          "id": "s3aga3yckaxfkETj",
+          "name": "OpenAi account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst item = items[0];\n\nif (!item.binary) {\n  throw new Error(\"No file uploaded\");\n}\n\nconst binaryKeys = Object.keys(item.binary);\nconst originalKey = binaryKeys[0];\n\nreturn [{\n  json: item.json,\n  binary: {\n    data: item.binary[originalKey]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        -112
+      ],
+      "id": "bcdf1cca-c10d-47bb-8ece-5f0e601b9c33",
+      "name": "Normalize Binary Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst item = items[0];\n\nif (!item.binary) {\n  throw new Error(\"No file uploaded\");\n}\n\nconst binaryKeys = Object.keys(item.binary);\nconst originalKey = binaryKeys[0];\n\nreturn [{\n  json: item.json,\n  binary: {\n    data: item.binary[originalKey]\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1344,
+        -48
+      ],
+      "id": "0707c774-f54d-4fb2-831d-17bda1a8e627",
+      "name": "Nomalize binary data"
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.choices[0].message.content }}",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        0,
+        192
+      ],
+      "id": "d513d616-106e-4aa2-a4ba-f96b68fd47e5",
+      "name": "Respond to Chat1",
+      "webhookId": "ff911721-cd86-4767-bdef-a98147c0e4d7"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the extracted CSV data\nconst items = $input.all();\n\n// Validate we have data\nif (!items || items.length === 0) {\n  return [{\n    json: {\n      status: \"error\",\n      message: \"❌ No data found in the uploaded file. Please check your CSV and try again.\",\n      ready_to_analyze: false\n    }\n  }];\n}\n\n// Get or initialize storage\nlet storage = $getWorkflowStaticData('global');\n\n// Initialize reconciliation storage if it doesn't exist\nif (!storage.recon) {\n  storage.recon = {\n    posData: null,\n    processorData: null,\n    uploadNumber: 0,\n    lastUploadTime: null\n  };\n}\n\n// Increment upload counter\nstorage.recon.uploadNumber += 1;\nconst currentUpload = storage.recon.uploadNumber;\nstorage.recon.lastUploadTime = new Date().toISOString();\n\n// First upload = POS, Second upload = Processor\nif (currentUpload === 1) {\n  // Store as POS data\n  storage.recon.posData = items;\n  \n  return [{\n    json: {\n      status: \"pos_received\",\n      message: \"✅ POS data received! (\" + items.length + \" transactions)\\n\\n📋 Step 2: Now upload your Processor report (CSV format)\",\n      upload_number: 1,\n      ready_to_analyze: false\n    }\n  }];\n  \n} else if (currentUpload === 2) {\n  // Store as Processor data\n  storage.recon.processorData = items;\n  \n  // Check if we have POS data\n  if (!storage.recon.posData) {\n    return [{\n      json: {\n        status: \"error\",\n        message: \"❌ No POS data found. Please start over and upload POS file first.\",\n        ready_to_analyze: false\n      }\n    }];\n  }\n  \n  return [{\n    json: {\n      status: \"ready\",\n      message: \"✅ Both files received! Analyzing your reconciliation data...\",\n      upload_number: 2,\n      pos_count: storage.recon.posData.length,\n      processor_count: items.length,\n      ready_to_analyze: true\n    }\n  }];\n  \n} else {\n  // More than 2 uploads - reset and start over\n  storage.recon = {\n    posData: items,\n    processorData: null,\n    uploadNumber: 1,\n    lastUploadTime: new Date().toISOString()\n  };\n  \n  return [{\n    json: {\n      status: \"reset\",\n      message: \"⚠️ Too many files uploaded. Session reset.\\n\\n✅ Starting fresh - POS data received! (\" + items.length + \" transactions)\\n\\n📋 Step 2: Now upload your Processor report (CSV format)\",\n      upload_number: 1,\n      ready_to_analyze: false\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        -48
+      ],
+      "id": "583240f6-6bc7-4ec4-b9e6-301d988f42bc",
+      "name": "Process Uploaded Processor File"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the extracted CSV data\nconst items = $input.all();\n\n// Validate we have data\nif (!items || items.length === 0) {\n  return [{\n    json: {\n      status: \"error\",\n      message: \"❌ No data found in the uploaded file. Please check your CSV and try again.\",\n      ready_to_analyze: false\n    }\n  }];\n}\n\n// Get or initialize storage\nlet storage = $getWorkflowStaticData('global');\n\n// Initialize reconciliation storage if it doesn't exist\nif (!storage.recon) {\n  storage.recon = {\n    posData: null,\n    processorData: null,\n    uploadNumber: 0,\n    lastUploadTime: null\n  };\n}\n\n// Increment upload counter\nstorage.recon.uploadNumber += 1;\nconst currentUpload = storage.recon.uploadNumber;\nstorage.recon.lastUploadTime = new Date().toISOString();\n\n// First upload = POS, Second upload = Processor\nif (currentUpload === 1) {\n  // Store as POS data\n  storage.recon.posData = items;\n  \n  return [{\n    json: {\n      status: \"pos_received\",\n      message: \"✅ POS data received! (\" + items.length + \" transactions)\\n\\n📋 Step 2: Now upload your Processor report (CSV format)\",\n      upload_number: 1,\n      ready_to_analyze: false\n    }\n  }];\n  \n} else if (currentUpload === 2) {\n  // Store as Processor data\n  storage.recon.processorData = items;\n  \n  // Check if we have POS data\n  if (!storage.recon.posData) {\n    return [{\n      json: {\n        status: \"error\",\n        message: \"❌ No POS data found. Please start over and upload POS file first.\",\n        ready_to_analyze: false\n      }\n    }];\n  }\n  \n  return [{\n    json: {\n      status: \"ready\",\n      message: \"✅ Both files received! Analyzing your reconciliation data...\",\n      upload_number: 2,\n      pos_count: storage.recon.posData.length,\n      processor_count: items.length,\n      ready_to_analyze: true\n    }\n  }];\n  \n} else {\n  // More than 2 uploads - silently reset and start over\n  storage.recon = {\n    posData: items,\n    processorData: null,\n    uploadNumber: 1,\n    lastUploadTime: new Date().toISOString()\n  };\n  \n  return [{\n    json: {\n      status: \"pos_received\",\n      message: \"✅ POS data received! (\" + items.length + \" transactions)\\n\\n📋 Step 2: Now upload your Processor report (CSV format)\",\n      upload_number: 1,\n      ready_to_analyze: false\n    }\n  }];\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        672,
+        -112
+      ],
+      "id": "19ea7a84-2ec2-40d9-956f-72fa3d592dc4",
+      "name": "Process Uploaded POS File"
+    },
+    {
+      "parameters": {
+        "options": {
+          "headerRow": true,
+          "includeEmptyCells": false
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        1568,
+        -48
+      ],
+      "id": "e592ef56-53a4-4fd5-afef-b2594450fe9a",
+      "name": "Extract from Processor File"
+    },
+    {
+      "parameters": {
+        "options": {
+          "headerRow": true,
+          "includeEmptyCells": false
+        }
+      },
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        -112
+      ],
+      "id": "9332aad9-ecae-48fd-823a-cc8d4a4505cd",
+      "name": "Extract from POS File"
+    },
+    {
+      "parameters": {
+        "message": "={{ $json.output[0].content[0].text }}",
+        "waitUserReply": false,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chat",
+      "typeVersion": 1,
+      "position": [
+        2592,
+        -112
+      ],
+      "id": "c7b99ecb-7107-4833-b472-12826171490c",
+      "name": "Share Reconciliation Review Insights",
+      "webhookId": "6dd9badb-e491-400b-a04a-0036a113ee80"
+    }
+  ],
+  "pinData": {
+    "Chat Trigger": [
+      {
+        "json": {
+          "action": "sendMessage",
+          "sessionId": "182f594b-65cc-4c30-ac21-839e46282f24",
+          "chatInput": "pos",
+          "files": [
+            {
+              "fileName": "pos-report.csv",
+              "fileSize": "392 B",
+              "fileType": "text",
+              "mimeType": "text/csv",
+              "fileExtension": "csv",
+              "binaryKey": "data0"
+            }
+          ]
+        },
+        "binary": {
+          "data0": {
+            "mimeType": "text/csv",
+            "fileType": "text",
+            "fileExtension": "csv",
+            "data": "filesystem-v2",
+            "fileName": "pos-report.csv",
+            "id": "filesystem-v2:workflows/SSx4hc9g6yonmLTz/executions/temp/binary_data/9a82b56f-cb06-4550-9d11-32ac3a4fa9e9",
+            "fileSize": "392 B"
+          }
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "Chat Trigger": {
+      "main": [
+        [
+          {
+            "node": "Normalize Binary Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If": {
+      "main": [
+        [
+          {
+            "node": "Format Data for AI",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Chat",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Data for AI": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Message a model": {
+      "main": [
+        [
+          {
+            "node": "Share Reconciliation Review Insights",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Binary Data": {
+      "main": [
+        [
+          {
+            "node": "Extract from POS File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Chat": {
+      "main": [
+        [
+          {
+            "node": "Nomalize binary data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Nomalize binary data": {
+      "main": [
+        [
+          {
+            "node": "Extract from Processor File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Uploaded Processor File": {
+      "main": [
+        [
+          {
+            "node": "Format Data for AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process Uploaded POS File": {
+      "main": [
+        [
+          {
+            "node": "If",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from Processor File": {
+      "main": [
+        [
+          {
+            "node": "Process Uploaded Processor File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract from POS File": {
+      "main": [
+        [
+          {
+            "node": "Process Uploaded POS File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "e43cd65a-a2e0-4307-9bdf-ac02ac999cfb",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "5055a2e6d6ddbff4a1d4fb7df85bf3095ade2ba12d47e3e5ec4671287e6c8a63"
+  },
+  "id": "SSx4hc9g6yonmLTz",
+  "tags": []
+}
