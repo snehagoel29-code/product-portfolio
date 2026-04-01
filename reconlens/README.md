@@ -78,6 +78,6 @@ The live prototype is currently offline. Screenshots below show the working POC.
 - n8n (workflow automation)
 - Claude / ChatGPT / Gemini (LLM reasoning)
 - Custom system prompt designed for financial diagnostic accuracy
-
+- Read more: [Reconciliation isn't the problem. Diagnosis is. — Substack](https://open.substack.com/pub/snehagoel29/p/reconciliation-isnt-the-problem-diagnosis)
 ---
 Built by Sneha Goel · Senior Product Manager · [LinkedIn](https://www.linkedin.com/in/snehagoel29)
